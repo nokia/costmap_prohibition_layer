@@ -86,6 +86,30 @@ void CostmapProhibitionLayer::onInitialize()
   computeMapBounds();
 
   ROS_INFO("CostmapProhibitionLayer initialized.");
+
+  update_zones_srv_ = nh.advertiseService("update_zones", &CostmapProhibitionLayer::updateZones, this);
+}
+
+bool CostmapProhibitionLayer::updateZones(costmap_prohibition_layer::UpdateZones::Request &req,
+                                          costmap_prohibition_layer::UpdateZones::Response &res)
+{
+  _prohibition_polygons.clear();
+  for (int i = 0; i < req.zones.size(); i++)
+  {
+    std::vector<geometry_msgs::Point> polygon;
+    for (int j = 0; j < req.zones[i].points.size(); j++)
+    {
+      geometry_msgs::Point point;
+      point.x = req.zones[i].points[j].x;
+      point.y = req.zones[i].points[j].y;
+      point.z = req.zones[i].points[j].z;
+      polygon.push_back(point);
+    }
+    _prohibition_polygons.push_back(polygon);
+  }
+  computeMapBounds();
+  res.ret = true;
+  return true;
 }
 
 void CostmapProhibitionLayer::reconfigureCB(CostmapProhibitionLayerConfig &config, uint32_t level)

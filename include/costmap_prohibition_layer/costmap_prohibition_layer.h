@@ -48,6 +48,7 @@
 #include <costmap_2d/layer.h>
 #include <costmap_2d/layered_costmap.h>
 #include <costmap_prohibition_layer/CostmapProhibitionLayerConfig.h>
+#include <costmap_prohibition_layer/UpdateZones.h>
 #include <dynamic_reconfigure/server.h>
 
 #include <unordered_map>
@@ -189,6 +190,11 @@ private:
  *                    false if it wasn't
   */
   bool getPoint(XmlRpc::XmlRpcValue &val, geometry_msgs::Point &point);
+
+  bool updateZones(costmap_prohibition_layer::UpdateZones::Request &req,
+                   costmap_prohibition_layer::UpdateZones::Response &res);
+
+  ros::ServiceServer update_zones_srv_;
 
   dynamic_reconfigure::Server<CostmapProhibitionLayerConfig> *_dsrv;    //!< dynamic_reconfigure server for the costmap
   std::mutex _data_mutex;                                               //!< mutex for the accessing _prohibition_points and _prohibition_polygons
