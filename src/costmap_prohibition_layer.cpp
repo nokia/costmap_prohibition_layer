@@ -61,6 +61,20 @@ void CostmapProhibitionLayer::onInitialize()
   ros::NodeHandle nh("~/" + name_);
   current_ = true;
 
+  std::string tf_prefix_param;
+  std::string tf_prefix;
+  nh.searchParam("tf_prefix", tf_prefix_param);
+  nh.getParam(tf_prefix_param, tf_prefix);
+  std::string base_frame_param;
+  std::string base_frame;
+  nh.searchParam("robot_base_frame", base_frame_param);
+  nh.getParam(base_frame_param, base_frame);
+
+  _base_tf = tf_prefix + "/" + base_frame;
+  ROS_INFO_STREAM("Base tf is: " << _base_tf);
+  ROS_INFO_STREAM("Global frame is: " << layered_costmap_->getGlobalFrameID());
+  
+
   _dsrv = new dynamic_reconfigure::Server<CostmapProhibitionLayerConfig>(nh);
   dynamic_reconfigure::Server<CostmapProhibitionLayerConfig>::CallbackType cb =
       boost::bind(&CostmapProhibitionLayer::reconfigureCB, this, _1, _2);
@@ -209,6 +223,38 @@ void CostmapProhibitionLayer::setPolygonCost(costmap_2d::Costmap2D &master_grid,
   // get the cells that fill the polygon
   rasterizePolygon(map_polygon, polygon_cells, fill_polygon);
 
+  std::vector<geometry_msgs::Point> footprint = layered_costmap_->getFootprint();
+  tf::StampedTransform transform;
+  try{
+    _listener.lookupTransform(layered_costmap_->getGlobalFrameID(), _base_tf,
+			      ros::Time(0), transform);
+  }
+  catch (tf::TransformException &ex) {
+    ROS_ERROR("%s",ex.what());
+    ros::Duration(1.0).sleep();
+    return;
+  }
+
+  for (unsigned int i = 0; i < polygon_cells.size(); ++i)
+  {
+    int mx = polygon_cells[i].x;
+    int my = polygon_cells[i].y;
+    for (unsigned int j=0; j<footprint.size(); ++j)
+    {
+      // TODO: compute the transfomation outside of the polygon_cells loop
+      tf::Vector3 vec(footprint[j].x, footprint[j].y, 0);
+      tf::Vector3 trans_vec = transform(vec);
+
+      int fx, fy;
+      master_grid.worldToMapNoBounds(trans_vec.getX(), trans_vec.getY(), fx, fy);
+      if (mx == fx && my == fy) {
+	ROS_INFO_STREAM("Footprint is in prohibited area, skipping");
+	return;
+      }
+    }
+  }
+  ROS_INFO_STREAM("OK, robot is outside prohibited area, continuing...");
+  
   // set the cost of those cells
   for (unsigned int i = 0; i < polygon_cells.size(); ++i)
   {

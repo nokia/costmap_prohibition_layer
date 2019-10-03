@@ -50,6 +50,7 @@
 #include <costmap_prohibition_layer/CostmapProhibitionLayerConfig.h>
 #include <costmap_prohibition_layer/UpdateZones.h>
 #include <dynamic_reconfigure/server.h>
+#include <tf/transform_listener.h>
 
 #include <unordered_map>
 
@@ -203,6 +204,8 @@ private:
   std::vector<geometry_msgs::Point> _prohibition_points;                //!< vector to save the lonely points in source coordinates
   std::vector<std::vector<geometry_msgs::Point>> _prohibition_polygons; //!< vector to save the polygons (including lines) in source coordinates
   double _min_x, _min_y, _max_x, _max_y;                                //!< cached map bounds
+  std::string _base_tf;                                                 //!< base frame of the robot
+  tf::TransformListener _listener;
 };
 } // namespace costmap_prohibition_layer_namespace
 #endif
