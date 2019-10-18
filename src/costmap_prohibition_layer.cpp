@@ -248,12 +248,11 @@ void CostmapProhibitionLayer::setPolygonCost(costmap_2d::Costmap2D &master_grid,
       int fx, fy;
       master_grid.worldToMapNoBounds(trans_vec.getX(), trans_vec.getY(), fx, fy);
       if (mx == fx && my == fy) {
-	ROS_INFO_STREAM("Footprint is in prohibited area, skipping");
+	ROS_WARN_STREAM("Footprint is in prohibited area, skipping");
 	return;
       }
     }
   }
-  ROS_INFO_STREAM("OK, robot is outside prohibited area, continuing...");
   
   // set the cost of those cells
   for (unsigned int i = 0; i < polygon_cells.size(); ++i)
