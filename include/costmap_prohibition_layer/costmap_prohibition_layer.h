@@ -206,6 +206,7 @@ private:
   double _min_x, _min_y, _max_x, _max_y;                                //!< cached map bounds
   std::string _base_tf;                                                 //!< base frame of the robot
   tf::TransformListener _listener;
+  bool _no_footprint_conflict;
 };
 } // namespace costmap_prohibition_layer_namespace
 #endif

@@ -69,6 +69,9 @@ void CostmapProhibitionLayer::onInitialize()
   std::string base_frame;
   nh.searchParam("robot_base_frame", base_frame_param);
   nh.getParam(base_frame_param, base_frame);
+  std::string no_footprint_conflict_param;
+  nh.searchParam("no_footprint_conflict", no_footprint_conflict_param);
+  nh.getParam(no_footprint_conflict_param, _no_footprint_conflict);
 
   _base_tf = tf_prefix + "/" + base_frame;
   ROS_INFO_STREAM("Base tf is: " << _base_tf);
@@ -235,24 +238,25 @@ void CostmapProhibitionLayer::setPolygonCost(costmap_2d::Costmap2D &master_grid,
     return;
   }
 
-  for (unsigned int i = 0; i < polygon_cells.size(); ++i)
-  {
-    int mx = polygon_cells[i].x;
-    int my = polygon_cells[i].y;
-    for (unsigned int j=0; j<footprint.size(); ++j)
+  if (_no_footprint_conflict)
+    for (unsigned int i = 0; i < polygon_cells.size(); ++i)
     {
-      // TODO: compute the transfomation outside of the polygon_cells loop
-      tf::Vector3 vec(footprint[j].x, footprint[j].y, 0);
-      tf::Vector3 trans_vec = transform(vec);
+      int mx = polygon_cells[i].x;
+      int my = polygon_cells[i].y;
+      for (unsigned int j=0; j<footprint.size(); ++j)
+      {
+        // TODO: compute the transfomation outside of the polygon_cells loop
+        tf::Vector3 vec(footprint[j].x, footprint[j].y, 0);
+        tf::Vector3 trans_vec = transform(vec);
 
-      int fx, fy;
-      master_grid.worldToMapNoBounds(trans_vec.getX(), trans_vec.getY(), fx, fy);
-      if (mx == fx && my == fy) {
-	ROS_WARN_STREAM("Footprint is in prohibited area, skipping");
-	return;
+        int fx, fy;
+        master_grid.worldToMapNoBounds(trans_vec.getX(), trans_vec.getY(), fx, fy);
+        if (mx == fx && my == fy) {
+	  ROS_WARN_STREAM("Footprint is in prohibited area, skipping");
+          return;
+        }
       }
     }
-  }
   
   // set the cost of those cells
   for (unsigned int i = 0; i < polygon_cells.size(); ++i)
