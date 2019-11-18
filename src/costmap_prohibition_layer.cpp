@@ -72,7 +72,10 @@ void CostmapProhibitionLayer::onInitialize()
   std::string no_footprint_conflict_param;
   nh.searchParam("no_footprint_conflict", no_footprint_conflict_param);
   nh.getParam(no_footprint_conflict_param, _no_footprint_conflict);
-
+  if (_no_footprint_conflict)
+    ROS_INFO("prohibition area will not conflict the robot footprint");
+  else
+    ROS_INFO("prohibition area will be enforced regardless of the robot footprint");
   _base_tf = tf_prefix + "/" + base_frame;
   ROS_INFO_STREAM("Base tf is: " << _base_tf);
   ROS_INFO_STREAM("Global frame is: " << layered_costmap_->getGlobalFrameID());
