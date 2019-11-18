@@ -1,3 +1,4 @@
 geometry_msgs/Polygon[] zones
+string source_id
 ---
 bool ret 

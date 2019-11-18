@@ -76,7 +76,7 @@ void CostmapProhibitionLayer::onInitialize()
   _base_tf = tf_prefix + "/" + base_frame;
   ROS_INFO_STREAM("Base tf is: " << _base_tf);
   ROS_INFO_STREAM("Global frame is: " << layered_costmap_->getGlobalFrameID());
-  
+
 
   _dsrv = new dynamic_reconfigure::Server<CostmapProhibitionLayerConfig>(nh);
   dynamic_reconfigure::Server<CostmapProhibitionLayerConfig>::CallbackType cb =
@@ -110,7 +110,24 @@ void CostmapProhibitionLayer::onInitialize()
 bool CostmapProhibitionLayer::updateZones(costmap_prohibition_layer::UpdateZones::Request &req,
                                           costmap_prohibition_layer::UpdateZones::Response &res)
 {
-  _prohibition_polygons.clear();
+  std::string source_id = req.source_id;
+
+  ROS_INFO("update zones from source '%s'", source_id.c_str());
+  if (req.zones.size() == 0 ||
+      (req.zones.size() == 1 && req.zones[0].points.size() == 0)) {
+    ROS_INFO("empty request, erasing source");
+    _prohibition_polygons.erase(source_id);
+    res.ret = true;
+    return true;
+  }
+  auto our_zones = _prohibition_polygons.find(source_id);
+  if (our_zones == _prohibition_polygons.end()) {
+    ROS_INFO("new source, creating zones");
+    std::vector<std::vector<geometry_msgs::Point>> zones;
+    our_zones = _prohibition_polygons.insert(our_zones, std::pair<std::string, std::vector<std::vector<geometry_msgs::Point>>>(source_id, zones));
+  } else
+    ROS_INFO("existing source, updating zones");
+  our_zones->second.clear();
   for (int i = 0; i < req.zones.size(); i++)
   {
     std::vector<geometry_msgs::Point> polygon;
@@ -122,7 +139,7 @@ bool CostmapProhibitionLayer::updateZones(costmap_prohibition_layer::UpdateZones
       point.z = req.zones[i].points[j].z;
       polygon.push_back(point);
     }
-    _prohibition_polygons.push_back(polygon);
+    our_zones->second.push_back(polygon);
   }
   computeMapBounds();
   res.ret = true;
@@ -160,12 +177,16 @@ void CostmapProhibitionLayer::updateCosts(costmap_2d::Costmap2D &master_grid, in
   std::lock_guard<std::mutex> l(_data_mutex);
 
   // set costs of polygons
-  for (int i = 0; i < _prohibition_polygons.size(); ++i)
-  {
-    setPolygonCost(master_grid, _prohibition_polygons[i], LETHAL_OBSTACLE, min_i, min_j, max_i, max_j, _fill_polygons);
+  for (auto p = _prohibition_polygons.begin();
+       p != _prohibition_polygons.end(); p++) {
+    for (int i = 0; i < p->second.size(); ++i)
+    {
+      setPolygonCost(master_grid, p->second[i], LETHAL_OBSTACLE, min_i, min_j, max_i, max_j, _fill_polygons);
+    }
   }
 
   // set cost of points
+  // TODO: make points also identified by the source
   for (int i = 0; i < _prohibition_points.size(); ++i)
   {
     unsigned int mx;
@@ -185,16 +206,19 @@ void CostmapProhibitionLayer::computeMapBounds()
   _min_x = _min_y = _max_x = _max_y = 0;
 
   // iterate polygons
-  for (int i = 0; i < _prohibition_polygons.size(); ++i)
-  {
-    for (int j = 0; j < _prohibition_polygons.at(i).size(); ++j)
+  for (auto p = _prohibition_polygons.begin();
+       p != _prohibition_polygons.end(); ++p) {
+    for (int i = 0; i < p->second.size(); ++i)
     {
-      double px = _prohibition_polygons.at(i).at(j).x;
-      double py = _prohibition_polygons.at(i).at(j).y;
-      _min_x = std::min(px, _min_x);
-      _min_y = std::min(py, _min_y);
-      _max_x = std::max(px, _max_x);
-      _max_y = std::max(py, _max_y);
+      for (int j = 0; j < p->second.at(i).size(); ++j)
+      {
+        double px = p->second.at(i).at(j).x;
+        double py = p->second.at(i).at(j).y;
+        _min_x = std::min(px, _min_x);
+        _min_y = std::min(py, _min_y);
+        _max_x = std::max(px, _max_x);
+        _max_y = std::max(py, _max_y);
+      }
     }
   }
 
@@ -230,7 +254,7 @@ void CostmapProhibitionLayer::setPolygonCost(costmap_2d::Costmap2D &master_grid,
   tf::StampedTransform transform;
   try{
     _listener.lookupTransform(layered_costmap_->getGlobalFrameID(), _base_tf,
-			      ros::Time(0), transform);
+                              ros::Time(0), transform);
   }
   catch (tf::TransformException &ex) {
     ROS_ERROR("%s",ex.what());
@@ -252,12 +276,12 @@ void CostmapProhibitionLayer::setPolygonCost(costmap_2d::Costmap2D &master_grid,
         int fx, fy;
         master_grid.worldToMapNoBounds(trans_vec.getX(), trans_vec.getY(), fx, fy);
         if (mx == fx && my == fy) {
-	  ROS_WARN_STREAM("Footprint is in prohibited area, skipping");
+          ROS_WARN_STREAM("Footprint is in prohibited area, skipping");
           return;
         }
       }
     }
-  
+
   // set the cost of those cells
   for (unsigned int i = 0; i < polygon_cells.size(); ++i)
   {
@@ -407,6 +431,8 @@ bool CostmapProhibitionLayer::parseProhibitionListFromYaml(ros::NodeHandle *nhan
   {
     if (param_yaml.getType() == XmlRpc::XmlRpcValue::TypeArray) // list of goals
     {
+      std::vector<std::vector<geometry_msgs::Point>> empty_zones;
+      auto p = _prohibition_polygons.insert(_prohibition_polygons.begin(), std::pair<std::string, std::vector<std::vector<geometry_msgs::Point>>>("init", empty_zones));
       for (int i = 0; i < param_yaml.size(); ++i)
       {
         if (param_yaml[i].getType() == XmlRpc::XmlRpcValue::TypeArray)
@@ -469,7 +495,7 @@ bool CostmapProhibitionLayer::parseProhibitionListFromYaml(ros::NodeHandle *nhan
               point.y = point_B.y + point_N.y;
               vector_to_add.push_back(point);
 
-              _prohibition_polygons.push_back(vector_to_add);
+              p->second.push_back(vector_to_add);
             }
           }
           // add a point or add a polygon
@@ -482,7 +508,7 @@ bool CostmapProhibitionLayer::parseProhibitionListFromYaml(ros::NodeHandle *nhan
               ret_val = getPoint(param_yaml[i][j], point);
               vector_to_add.push_back(point);
             }
-            _prohibition_polygons.push_back(vector_to_add);
+            p->second.push_back(vector_to_add);
           }
         }
         else
@@ -490,6 +516,10 @@ bool CostmapProhibitionLayer::parseProhibitionListFromYaml(ros::NodeHandle *nhan
           ROS_ERROR_STREAM("Prohibition Layer:" << param << " with index " << i << " is not correct.");
           ret_val = false;
         }
+      }
+      if (p->second.size() == 0) {
+        ROS_INFO("nothing added from yaml file");
+        _prohibition_polygons.erase(p);
       }
     }
     else

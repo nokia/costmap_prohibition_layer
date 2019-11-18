@@ -202,7 +202,7 @@ private:
   double _costmap_resolution;                                           //!< resolution of the overlayed costmap to create the thinnest line out of two points
   bool _fill_polygons;                                                  //!< if true, all cells that are located in the interior of polygons are marked as obstacle as well
   std::vector<geometry_msgs::Point> _prohibition_points;                //!< vector to save the lonely points in source coordinates
-  std::vector<std::vector<geometry_msgs::Point>> _prohibition_polygons; //!< vector to save the polygons (including lines) in source coordinates
+  std::map<std::string, std::vector<std::vector<geometry_msgs::Point>>> _prohibition_polygons; //!< vector to save the polygons (including lines) in source coordinates
   double _min_x, _min_y, _max_x, _max_y;                                //!< cached map bounds
   std::string _base_tf;                                                 //!< base frame of the robot
   tf::TransformListener _listener;
